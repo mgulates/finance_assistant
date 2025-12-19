@@ -110,27 +110,37 @@ async function main() {
     skipDuplicates: true,
   });
 
-  // 5) BUDGET (this month)
+  // 5) BUDGET (this month) - Kategori bazlı bütçeler
   const now = new Date();
-  await prisma.budget.upsert({
-    where: {
-      userId_month_year_categoryId: {
+
+  const budgetsData = [
+    { categoryId: food?.id, limit: "3000.00" },
+    { categoryId: transport?.id, limit: "1500.00" },
+    { categoryId: shopping?.id, limit: "2000.00" },
+    { categoryId: rent?.id, limit: "8000.00" },
+  ].filter(b => b.categoryId);
+
+  for (const budget of budgetsData) {
+    await prisma.budget.upsert({
+      where: {
+        userId_month_year_categoryId: {
+          userId: user.id,
+          month: now.getMonth() + 1,
+          year: now.getFullYear(),
+          categoryId: budget.categoryId,
+        },
+      },
+      update: { limit: budget.limit },
+      create: {
         userId: user.id,
         month: now.getMonth() + 1,
         year: now.getFullYear(),
-        categoryId: null,
+        limit: budget.limit,
+        spent: "0.00",
+        categoryId: budget.categoryId,
       },
-    },
-    update: { limit: "25000.00" },
-    create: {
-      userId: user.id,
-      month: now.getMonth() + 1,
-      year: now.getFullYear(),
-      limit: "25000.00",
-      spent: "0.00",
-      categoryId: null,
-    },
-  });
+    });
+  }
 
   // 6) TARGET
   await prisma.target.createMany({

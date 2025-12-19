@@ -14,18 +14,22 @@ function serializeIncome(income: any) {
 
 export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const limit = searchParams.get('limit');
+
     const user = await prisma.user.findFirst();
     if (!user) return NextResponse.json([], { status: 404 });
 
     const incomes = await prisma.income.findMany({
       where: { userId: user.id },
       include: { category: true },
-      orderBy: { date: 'desc' }
+      orderBy: { date: 'desc' },
+      ...(limit && { take: parseInt(limit) })
     });
 
     // Decimal'ları serialize et
     const serialized = incomes.map(serializeIncome);
-    return NextResponse.json(serialized);
+    return NextResponse.json({ incomes: serialized });
   } catch (error) {
     return NextResponse.json({ error: 'Gelirler çekilemedi' }, { status: 500 });
   }

@@ -2,6 +2,7 @@ services:
   db:
     image: postgres:16-alpine
     container_name: finance-db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -10,6 +11,40 @@ services:
       - "55432:5432" 
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d finance"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    container_name: finance-app
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/finance?schema=public
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo '⏳ Waiting for database...' &&
+        npx prisma migrate deploy &&
+        echo '🌱 Seeding database...' &&
+        npx prisma db seed || true &&
+        echo '🚀 Starting app...' &&
+        npm run dev
+      "
 
 volumes:
   pgdata:

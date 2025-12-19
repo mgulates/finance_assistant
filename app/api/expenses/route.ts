@@ -17,6 +17,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     let userId = searchParams.get('userId');
+    const limit = searchParams.get('limit');
 
     // MVP hilesi: Eğer userId yoksa veritabanındaki ilk user'ı alalım
     if (!userId) {
@@ -28,12 +29,13 @@ export async function GET(request: Request) {
     const expenses = await prisma.expense.findMany({
       where: { userId },
       include: { category: true },
-      orderBy: { date: 'desc' }
+      orderBy: { date: 'desc' },
+      ...(limit && { take: parseInt(limit) })
     });
 
     // Decimal'ları serialize et
     const serialized = expenses.map(serializeExpense);
-    return NextResponse.json(serialized);
+    return NextResponse.json({ expenses: serialized });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: 'Veri çekilemedi' }, { status: 500 });

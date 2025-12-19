@@ -1,0 +1,333 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+interface Category {
+  id: string;
+  name: string;
+  color: string;
+  icon: string;
+}
+
+interface Expense {
+  id: string;
+  title: string;
+  amount: number;
+  date: string;
+  description?: string;
+  category?: Category;
+}
+
+const Icons = {
+  creditCard: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>,
+  pieChart: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>,
+  trendingUp: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
+  trash: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+  plus: <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>,
+};
+
+export default function ExpensesPage() {
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    title: "",
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    description: "",
+    categoryId: "",
+  });
+
+  useEffect(() => {
+    fetchExpenses();
+    fetchCategories();
+  }, []);
+
+  const fetchExpenses = async () => {
+    try {
+      const res = await fetch("/api/expenses");
+      const data = await res.json();
+      setExpenses(data.expenses || []);
+    } catch (error) {
+      console.error("Giderler yüklenemedi:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch("/api/categories");
+      const data = await res.json();
+      setCategories(data || []);
+    } catch (error) {
+      console.error("Kategoriler yüklenemedi:", error);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("/api/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...formData,
+          amount: parseFloat(formData.amount),
+        }),
+      });
+      if (res.ok) {
+        setShowModal(false);
+        setFormData({
+          title: "",
+          amount: "",
+          date: new Date().toISOString().split("T")[0],
+          description: "",
+          categoryId: "",
+        });
+        fetchExpenses();
+      }
+    } catch (error) {
+      console.error("Gider eklenemedi:", error);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Bu gideri silmek istediğinize emin misiniz?")) return;
+    try {
+      const res = await fetch(`/api/expenses?id=${id}`, { method: "DELETE" });
+      if (res.ok) fetchExpenses();
+    } catch (error) {
+      console.error("Gider silinemedi:", error);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("tr-TR", {
+      style: "currency",
+      currency: "TRY",
+    }).format(amount);
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString("tr-TR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+  if (loading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="h-10 w-48 skeleton rounded-xl"></div>
+        <div className="card skeleton h-96"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 animate-fade-in">
+      {/* Header */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold mb-1">Giderler</h1>
+          <p className="text-[var(--muted-foreground)]">
+            Tüm harcamalarınızı takip edin
+          </p>
+        </div>
+        <button onClick={() => setShowModal(true)} className="btn btn-primary">
+          <span>+</span> Yeni Gider
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="stat-card">
+          <div className="icon" style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444" }}>
+            {Icons.creditCard}
+          </div>
+          <p className="stat-label">Toplam Gider</p>
+          <p className="stat-value text-[var(--danger)]">
+            {formatCurrency(totalExpense)}
+          </p>
+        </div>
+        <div className="stat-card">
+          <div className="icon" style={{ background: "#e8ebff", color: "#4c5fd5" }}>
+            {Icons.pieChart}
+          </div>
+          <p className="stat-label">İşlem Sayısı</p>
+          <p className="stat-value">{expenses.length}</p>
+        </div>
+        <div className="stat-card">
+          <div className="icon" style={{ background: "#fff3e8", color: "#ff7a00" }}>
+            {Icons.trendingUp}
+          </div>
+          <p className="stat-label">Ortalama Gider</p>
+          <p className="stat-value">
+            {formatCurrency(expenses.length > 0 ? totalExpense / expenses.length : 0)}
+          </p>
+        </div>
+      </div>
+
+      {/* Expenses List */}
+      <div className="card">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="font-semibold text-lg">Gider Listesi</h2>
+          <div className="tab-group">
+            <button className="tab active">Tümü</button>
+            <button className="tab">Bu Ay</button>
+            <button className="tab">Bu Hafta</button>
+          </div>
+        </div>
+
+        {expenses.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-[var(--secondary)] flex items-center justify-center text-[#4c5fd5]">
+              {Icons.creditCard}
+            </div>
+            <h3 className="text-xl font-semibold mb-2">Henüz gider yok</h3>
+            <p className="text-[var(--muted-foreground)] mb-6">
+              İlk giderinizi ekleyerek başlayın
+            </p>
+            <button onClick={() => setShowModal(true)} className="btn btn-primary flex items-center gap-2 mx-auto">
+              {Icons.plus} Gider Ekle
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {expenses.map((expense) => (
+              <div
+                key={expense.id}
+                className="flex items-center justify-between p-4 rounded-2xl bg-[var(--secondary)] hover:bg-[var(--muted)] transition-all"
+              >
+                <div className="flex items-center gap-4">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center text-[var(--muted-foreground)]"
+                    style={{
+                      background: expense.category?.color
+                        ? `${expense.category.color}20`
+                        : "#f0f4ff",
+                    }}
+                  >
+                    {Icons.creditCard}
+                  </div>
+                  <div>
+                    <p className="font-semibold">{expense.title}</p>
+                    <p className="text-sm text-[var(--muted-foreground)]">
+                      {expense.category?.name || "Kategorisiz"} • {formatDate(expense.date)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="font-bold text-lg text-[var(--danger)]">
+                    -{formatCurrency(expense.amount)}
+                  </span>
+                  <button
+                    onClick={() => handleDelete(expense.id)}
+                    className="w-10 h-10 rounded-xl bg-[var(--danger)]/10 text-[var(--danger)] hover:bg-[var(--danger)]/20 flex items-center justify-center transition-colors"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Yeni Gider Ekle</h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="w-10 h-10 rounded-xl bg-[var(--secondary)] flex items-center justify-center hover:bg-[var(--muted)] transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="form-group">
+                <label className="form-label">Başlık</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Örn: Market alışverişi"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Tutar (₺)</label>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder="0.00"
+                  value={formData.amount}
+                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  required
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Kategori</label>
+                <select
+                  className="select"
+                  value={formData.categoryId}
+                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                >
+                  <option value="">Kategori Seçin</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.icon} {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Tarih</label>
+                <input
+                  type="date"
+                  className="input"
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Açıklama (Opsiyonel)</label>
+                <textarea
+                  className="input"
+                  rows={3}
+                  placeholder="Gider hakkında not ekleyin..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="btn btn-secondary flex-1"
+                >
+                  İptal
+                </button>
+                <button type="submit" className="btn btn-primary flex-1">
+                  Kaydet
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
