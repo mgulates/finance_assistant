@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { PaymentType } from '@prisma/client';
+
+// PaymentType değerleri
+type PaymentType = 'CASH' | 'CARD' | 'TRANSFER' | 'OTHER';
+
+// Decimal'ı string'e çeviren helper
+function serializeIncome(income: any) {
+  return {
+    ...income,
+    amount: income.amount?.toString() || '0'
+  };
+}
 
 export async function GET(request: Request) {
   try {
@@ -12,8 +22,10 @@ export async function GET(request: Request) {
       include: { category: true },
       orderBy: { date: 'desc' }
     });
-    
-    return NextResponse.json(incomes);
+
+    // Decimal'ları serialize et
+    const serialized = incomes.map(serializeIncome);
+    return NextResponse.json(serialized);
   } catch (error) {
     return NextResponse.json({ error: 'Gelirler çekilemedi' }, { status: 500 });
   }
@@ -22,20 +34,32 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { amount, title, date, categoryId, userId, paymentType } = body;
+    const { amount, title, date, categoryId, userId, paymentType, note, isRecurring } = body;
+
+    // userId yoksa ilk user'ı al (MVP hilesi)
+    let targetUserId = userId;
+    if (!targetUserId) {
+      const firstUser = await prisma.user.findFirst();
+      if (!firstUser) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+      targetUserId = firstUser.id;
+    }
 
     const newIncome = await prisma.income.create({
       data: {
         amount: amount,
         title,
         date: new Date(date),
-        paymentType: paymentType || PaymentType.CASH,
+        note: note || null,
+        paymentType: (paymentType as PaymentType) || 'CASH',
+        isRecurring: isRecurring || false,
         category: categoryId ? { connect: { id: categoryId } } : undefined,
-        user: { connect: { id: userId } }
+        user: { connect: { id: targetUserId } }
       }
     });
 
-    return NextResponse.json(newIncome, { status: 201 });
+    return NextResponse.json(serializeIncome(newIncome), { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: 'Gelir eklenemedi' }, { status: 500 });
   }
