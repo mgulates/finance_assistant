@@ -42,6 +42,7 @@ export async function GET(request: Request) {
       
       return {
         ...budget,
+        limit: budget.limit?.toString() || '0',
         spent: realSpent, 
         percentage: Math.min(100, (realSpent / Number(budget.limit)) * 100)
       };
@@ -62,10 +63,20 @@ export async function POST(request: Request) {
     const month = new Date().getMonth() + 1;
     const year = new Date().getFullYear();
 
+    // userId yoksa ilk user'ı al (MVP hilesi)
+    let targetUserId = userId;
+    if (!targetUserId) {
+      const firstUser = await prisma.user.findFirst();
+      if (!firstUser) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+      targetUserId = firstUser.id;
+    }
+
     const budget = await prisma.budget.upsert({
       where: {
-        userId_month_year_categoryId: { // Schema'daki @@unique alanına göre
-          userId,
+        userId_month_year_categoryId: {
+          userId: targetUserId,
           month,
           year,
           categoryId
@@ -73,7 +84,7 @@ export async function POST(request: Request) {
       },
       update: { limit: limit },
       create: {
-        userId,
+        userId: targetUserId,
         categoryId,
         month,
         year,
@@ -81,7 +92,10 @@ export async function POST(request: Request) {
       }
     });
 
-    return NextResponse.json(budget);
+    return NextResponse.json({
+      ...budget,
+      limit: budget.limit?.toString() || '0'
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: 'Bütçe ayarlanamadı' }, { status: 500 });
