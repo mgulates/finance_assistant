@@ -7,59 +7,192 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  incomes   Income[]
-  expenses  Expense[]
   categories Category[]
+  incomes    Income[]
+  expenses   Expense[]
+  budgets    Budget[]
+  targets    Target[]
+  analyses   Analysis[]
+  news       News[]
 }
 
 model Category {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   name      String
   type      CategoryType
-  createdAt DateTime @default(now())
+  color     String? // UI için (#RRGGBB)
+  icon      String? // UI için (örn: "coffee")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  expenses  Expense[]
+  incomes  Income[]
+  expenses Expense[]
+  budgets  Budget[] // ✅ Budget ilişkisi karşı taraf
 
   @@unique([userId, name, type])
+  @@index([userId, type])
 }
 
 model Income {
-  id        String   @id @default(cuid())
-  amount    Decimal  @db.Decimal(10, 2)
-  date      DateTime
-  note      String?
-  createdAt DateTime @default(now())
+  id          String      @id @default(cuid())
+  amount      Decimal     @db.Decimal(12, 2)
+  date        DateTime
+  title       String?
+  note        String?
+  paymentType PaymentType @default(CASH)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@index([categoryId])
 }
 
 model Expense {
-  id         String   @id @default(cuid())
-  title      String
-  amount     Decimal  @db.Decimal(10, 2)
-  date       DateTime
-  note       String?
-  createdAt  DateTime @default(now())
+  id          String      @id @default(cuid())
+  amount      Decimal     @db.Decimal(12, 2)
+  date        DateTime
+  title       String
+  note        String?
+  paymentType PaymentType @default(CARD)
+  isRecurring Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id])
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@index([categoryId])
+}
+
+model Budget {
+  id        String   @id @default(cuid())
+  month     Int
+  year      Int
+  limit     Decimal  @db.Decimal(12, 2)
+  spent     Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Kategori bazlı bütçe (opsiyonel)
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, month, year, categoryId])
+  @@index([userId, year, month])
+}
+
+model Target {
+  id            String       @id @default(cuid())
+  title         String
+  description   String?
+  targetType    TargetType   @default(SAVING)
+  targetAmount  Decimal      @db.Decimal(12, 2)
+  currentAmount Decimal      @default(0) @db.Decimal(12, 2)
+  startDate     DateTime?
+  dueDate       DateTime?
+  status        TargetStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([dueDate])
+}
+
+model Analysis {
+  id           String     @id @default(cuid())
+  periodType   PeriodType
+  year         Int
+  month        Int?
+  totalIncome  Decimal    @default(0) @db.Decimal(12, 2)
+  totalExpense Decimal    @default(0) @db.Decimal(12, 2)
+  balance      Decimal    @default(0) @db.Decimal(12, 2)
+  healthScore  Int        @default(0) // 0-100
+  insights     Json?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, periodType, year, month])
+  @@index([userId, year])
+}
+
+model News {
+  id          String    @id @default(cuid())
+  title       String
+  source      String?
+  url         String?
+  publishedAt DateTime?
+  tags        String[]
+  summary     String?
+  sentiment   Sentiment @default(NEUTRAL)
+  createdAt   DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([publishedAt])
 }
 
 enum CategoryType {
   INCOME
   EXPENSE
+}
+
+enum PaymentType {
+  CASH
+  CARD
+  TRANSFER
+  OTHER
+}
+
+enum TargetType {
+  SAVING
+  DEBT_PAYOFF
+}
+
+enum TargetStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELED
+}
+
+enum PeriodType {
+  MONTHLY
+  YEARLY
+}
+
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
 }
