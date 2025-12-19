@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-, "prisma.config.js", "lib/prisma.js"  ],
+, "prisma.config.js", "lib/prisma.js", "app/expenses/ExpensesClient.jsx", "app/expenses/ExpensesClient.jsx"  ],
   "exclude": ["node_modules"]
 }
