@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { amount, title, date, categoryId, userId, paymentType, note, isRecurring } = body;
+    const { amount, title, date, categoryId, userId, paymentType, note } = body;
 
     // userId yoksa ilk user'ı al (MVP hilesi)
     let targetUserId = userId;
@@ -53,11 +53,10 @@ export async function POST(request: Request) {
     const newIncome = await prisma.income.create({
       data: {
         amount: amount,
-        title,
+        title: title || null,
         date: new Date(date),
         note: note || null,
         paymentType: (paymentType as PaymentType) || 'CASH',
-        isRecurring: isRecurring || false,
         category: categoryId ? { connect: { id: categoryId } } : undefined,
         user: { connect: { id: targetUserId } }
       }
@@ -65,6 +64,58 @@ export async function POST(request: Request) {
 
     return NextResponse.json(serializeIncome(newIncome), { status: 201 });
   } catch (error) {
+    console.error('Income POST error:', error);
     return NextResponse.json({ error: 'Gelir eklenemedi' }, { status: 500 });
+  }
+}
+
+// DELETE: Gelir sil
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID gerekli' }, { status: 400 });
+    }
+
+    await prisma.income.delete({
+      where: { id }
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: 'Gelir silinemedi' }, { status: 500 });
+  }
+}
+
+// PUT: Gelir güncelle
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, amount, title, date, categoryId, paymentType, isRecurring, note } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID gerekli' }, { status: 400 });
+    }
+
+    const updatedIncome = await prisma.income.update({
+      where: { id },
+      data: {
+        ...(amount !== undefined && { amount }),
+        ...(title && { title }),
+        ...(date && { date: new Date(date) }),
+        ...(categoryId && { categoryId }),
+        ...(paymentType && { paymentType: paymentType as PaymentType }),
+        ...(isRecurring !== undefined && { isRecurring }),
+        ...(note !== undefined && { note }),
+      }
+    });
+
+    return NextResponse.json(serializeIncome(updatedIncome));
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: 'Gelir güncellenemedi' }, { status: 500 });
   }
 }

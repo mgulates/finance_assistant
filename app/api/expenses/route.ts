@@ -77,3 +77,54 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Kayıt başarısız' }, { status: 500 });
   }
 }
+
+// DELETE: Gider sil
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID gerekli' }, { status: 400 });
+    }
+
+    await prisma.expense.delete({
+      where: { id }
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: 'Gider silinemedi' }, { status: 500 });
+  }
+}
+
+// PUT: Gider güncelle
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, amount, title, date, categoryId, paymentType, isRecurring, note } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID gerekli' }, { status: 400 });
+    }
+
+    const updatedExpense = await prisma.expense.update({
+      where: { id },
+      data: {
+        ...(amount !== undefined && { amount }),
+        ...(title && { title }),
+        ...(date && { date: new Date(date) }),
+        ...(categoryId && { categoryId }),
+        ...(paymentType && { paymentType: paymentType as PaymentType }),
+        ...(isRecurring !== undefined && { isRecurring }),
+        ...(note !== undefined && { note }),
+      }
+    });
+
+    return NextResponse.json(serializeExpense(updatedExpense));
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: 'Gider güncellenemedi' }, { status: 500 });
+  }
+}

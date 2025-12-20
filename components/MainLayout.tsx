@@ -27,16 +27,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   return (
     <SidebarContext.Provider value={{ collapsed, setCollapsed }}>
-      <div className="min-h-screen bg-[var(--background)]">
+      <div className="main-layout">
         <Sidebar />
-        <main
-          className={`min-h-screen transition-all duration-300 ${
-            collapsed ? "ml-[72px]" : "ml-64"
-          }`}
-        >
-          <div className="p-6 md:p-8">
-            {children}
-          </div>
+        <main className={`main-content ${collapsed ? "sidebar-collapsed" : "sidebar-expanded"}`}>
+          {children}
         </main>
       </div>
     </SidebarContext.Provider>

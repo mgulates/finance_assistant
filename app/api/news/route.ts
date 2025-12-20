@@ -1,56 +1,67 @@
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-// Dummy haberler - RSS parser yerine statik veri
-const dummyNews = [
-  {
-    id: '1',
-    title: 'Borsa İstanbul günü yükselişle kapattı',
-    source: 'Bloomberg HT',
-    pubDate: new Date().toISOString(),
-    summary: 'BIST 100 endeksi günü %1.2 artışla 9.850 puandan kapattı...',
-    link: 'https://www.bloomberght.com'
-  },
-  {
-    id: '2',
-    title: 'Merkez Bankası faiz kararını açıkladı',
-    source: 'Ekonomi Servisi',
-    pubDate: new Date().toISOString(),
-    summary: 'TCMB, politika faizini sabit tutma kararı aldı...',
-    link: 'https://www.tcmb.gov.tr'
-  },
-  {
-    id: '3',
-    title: 'Altın fiyatlarında son durum',
-    source: 'Finans Gündem',
-    pubDate: new Date().toISOString(),
-    summary: 'Gram altın 2.950 TL seviyesinden işlem görüyor...',
-    link: '#'
-  },
-  {
-    id: '4',
-    title: 'Dolar/TL paritesinde hareketlilik',
-    source: 'Ekonomi',
-    pubDate: new Date().toISOString(),
-    summary: 'Dolar/TL kuru 35.20 seviyelerinde seyrediyor...',
-    link: '#'
-  },
-  {
-    id: '5',
-    title: 'Öğrenciler için burs başvuruları başladı',
-    source: 'Eğitim',
-    pubDate: new Date().toISOString(),
-    summary: '2025 yılı KYK burs başvuruları için son tarih yaklaşıyor...',
-    link: '#'
-  }
-];
-
+// Haberleri veritabanından çek
 export async function GET() {
   try {
-    // Gerçek RSS entegrasyonu için rss-parser paketi gerekir
-    // Şimdilik dummy veri dönüyoruz
-    return NextResponse.json(dummyNews);
+    const user = await prisma.user.findFirst();
+    if (!user) return NextResponse.json([], { status: 404 });
+
+    const news = await prisma.news.findMany({
+      where: { userId: user.id },
+      orderBy: { publishedAt: 'desc' },
+      take: 20
+    });
+
+    // Frontend formatına dönüştür
+    const formattedNews = news.map(n => ({
+      id: n.id,
+      title: n.title,
+      description: n.summary || '',
+      source: n.source || 'Finans Gündem',
+      url: n.url || '#',
+      publishedAt: n.publishedAt?.toISOString() || new Date().toISOString(),
+      category: n.tags?.[0] || 'economy'
+    }));
+
+    return NextResponse.json(formattedNews);
   } catch (error) {
     console.error('News Error:', error);
-    return NextResponse.json(dummyNews);
+    return NextResponse.json([], { status: 500 });
+  }
+}
+
+// Yeni haber ekle
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { title, source, url, summary, tags, sentiment, userId } = body;
+
+    let targetUserId = userId;
+    if (!targetUserId) {
+      const firstUser = await prisma.user.findFirst();
+      if (!firstUser) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+      targetUserId = firstUser.id;
+    }
+
+    const news = await prisma.news.create({
+      data: {
+        title,
+        source,
+        url,
+        summary,
+        tags: tags || [],
+        sentiment: sentiment || 'NEUTRAL',
+        publishedAt: new Date(),
+        userId: targetUserId
+      }
+    });
+
+    return NextResponse.json(news, { status: 201 });
+  } catch (error) {
+    console.error('News creation error:', error);
+    return NextResponse.json({ error: 'Haber eklenemedi' }, { status: 500 });
   }
 }
